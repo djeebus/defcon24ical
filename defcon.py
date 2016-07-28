@@ -9,6 +9,45 @@ import pytz
 from lxml import etree
 
 vegas = pytz.timezone('US/Pacific')
+DEFCON_NUMBER = 24
+day_one = datetime.date(2016, 8, 4)
+
+day = datetime.timedelta(days=1)
+dates = {
+    'Thursday': day_one + (day * 0),
+    'Friday':   day_one + (day * 1),
+    'Saturday': day_one + (day * 2),
+    'Sunday':   day_one + (day * 3),
+}
+
+expected_counts = {
+    'Thursday': 32,
+    'Friday': 44,
+    'Saturday': 48,
+    'Sunday': 28,
+}
+
+
+title_clean_up = {
+    'vlanhoppingarppoisoningmitmattacksinvirtualizedenvironments': 'vlanhoppingarppoisoningandmaninthemiddleattacksinvirtualizedenvironments',
+    'toxicproxiesbypassinghttpsvpnstopwnyouronlineidentity': 'toxicproxiesbypassinghttpsandvpnstopwnyouronlineidentity',
+    'amonitordarklyreversingandexploitingubiquitousonscreendisplaycontrollersinmodernmonitors': 'amonitordarklyreversingandexploitingubiquitous',
+    'npreeavesdroppingonthemachines': 'eavesdroppingonthemachines',
+    'breakingtheinternetofvibratingthingswhatwelearnedreverseengineeringbluetoothandinternetenabledadulttoys': 'breakingtheinternetofvibratingthings',
+    'hackinghotelkeysandpointofsalesystemsattackingsystemsusingmagneticsecuretransmission': 'hackinghotelkeysandpointofsalesystems',
+    'howtogetgoodseatsinthesecuritytheaterhackingboardingpassesforfunandprofit': 'howtogetgoodseatsinthesecuritytheaterhackingboardingpassesforfunprofit',
+    '101sentientstoragedossdshaveamindoftheirown': 'sentientstoragedossdshaveamindoftheirown',
+    'canyoutrustautonomousvehiclescontactlessattacksagainstsensorsofselfdrivingvehicle': 'canyoutrustautonomousvehiclescontactlessattacks',
+    'droneshijackingmultidimensionalattackvectorsandcountermeasures': 'droneshijackingmultidimensionalattackvectorscountermeasures',
+    'honeyonionsexposingsnoopingtorhsdirrelays': 'honeyonionsexposingsnoopingtorhsdirrelaysguevaranoubiramiralisanatinia',
+    'hidingwookieesinhttphttpsmugglingisathingweshouldknowbetterandcareabout': 'hidingwookieesinhttphttpsmuggling',
+    'sixdegreesofdomainadminusinggraphtheorytoaccelerateredteamoperations': 'sixdegreesofdomainadmin',
+    'propagandaandyouandyourdeviceshowmediadevicescanbeusedtocoerceandhowthesamedevicescanbeusedtofightback': 'propagandaandyouandyourdevices',
+    'forcingatargetedltecellphoneintoanunsafenetwork': 'forcingatargetedltecellphoneintounsafenetwork',
+    'maelstromareyouplayingwithafulldeckusinganewlydevelopedattacklifecyclegametoeducatedemonstrateandevangelize': 'maelstromareyouplayingwithafulldeck',
+    'playingthroughthepaintheimpactofsecretsanddarkknowledgeonsecurityandintelligenceprofessionals': 'playingthroughthepaintheimpactofsecretsanddarkknowledge',
+    'howtoremmotecontrolanairlinersecurityflawsinavionics': 'howtoremotecontrolanairlinersecurityflawsinavionics',
+}
 
 if os.name == 'nt':
     import win_unicode_console
@@ -16,10 +55,9 @@ if os.name == 'nt':
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-DEFCON_NUMBER = 24
-
-
 DEFCON_ROOT_PATH = 'https://www.defcon.org/html/defcon-{num}'.format(num=DEFCON_NUMBER)
+
+
 def url(url_fmt):
     return url_fmt.format(root=DEFCON_ROOT_PATH, num=DEFCON_NUMBER)
 
@@ -33,7 +71,6 @@ DEFCON_ICAL_PATH = os.path.join(here, 'defcon%s.ics' % DEFCON_NUMBER)
 
 def get_url(url, path):
     if not os.path.isfile(path):
-        print("%s => %s" % (url, path))
         response = requests.get(url, stream=True)
         with open(path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=1024):
@@ -49,14 +86,6 @@ def get_url(url, path):
     return ' '.join(lines)
 
 
-dates = {
-    'Thursday': datetime.date(2015, 8, 6),
-    'Friday': datetime.date(2015, 8, 7),
-    'Saturday': datetime.date(2015, 8, 8),
-    'Sunday': datetime.date(2015, 8, 9),
-}
-
-
 def mkdate(day, tm):
     return datetime.datetime.combine(dates[day], tm)
 
@@ -65,7 +94,9 @@ chars = re.compile(r'[^a-z^0-9]', re.IGNORECASE)
 
 
 def clean_title(title):
-    return chars.sub('', title.lower())
+    text = chars.sub('', title.lower())
+    text = title_clean_up.get(text, text)
+    return text
 
 
 schedule_content = get_url(DEFCON_SCHEDULE_URL,
@@ -84,7 +115,16 @@ for day in tree.xpath('//h2[@class="title"]'):
     day_name = day.text
     presentations_by_day_track.setdefault(day_name, {})
 
-    for p_time in day.itersiblings():
+    siblings = list(day.itersiblings())
+    indices = []
+    for index, s in enumerate(siblings):
+        if s.tag == 'li':
+            indices.append(index)
+    for index in indices:
+        siblings[index:index] = list(siblings[index].iterchildren())
+
+    count = 0
+    for p_time in siblings:
         if p_time.tag == 'h2':
             break
 
@@ -93,7 +133,7 @@ for day in tree.xpath('//h2[@class="title"]'):
 
         time_text = p_time.text
 
-        track_wrapper = p_time.getnext()
+        track_wrapper = p_time.getnext()  # should be the ul
         for li in track_wrapper.getchildren():
             try:
                 track = next(li.iterchildren('h4'))
@@ -103,13 +143,13 @@ for day in tree.xpath('//h2[@class="title"]'):
             track_text = track.text
             track_schedule = presentations_by_day_track[day_name].setdefault(track.text, [])
 
-            if li.get('class') == 'emptyRoom':
+            track_info = list(track.itersiblings('p'))
+            if li.get('class') == 'emptyRoom' and not track_info:
                 track_schedule.append(None)
+                count += 1
                 continue
 
-            track_iter = track.itersiblings('p')
-
-            title = next(track_iter)
+            title = track_info[0]
 
             try:
                 title = next(title.iterchildren('a'))
@@ -117,11 +157,16 @@ for day in tree.xpath('//h2[@class="title"]'):
                 pass
 
             title_text = title.text
+            title_clean = clean_title(title_text)
+            if presentations_by_title.get(title_clean):
+                count += 1
+                continue
+
             title_href = title.get('href')
 
-            try:
-                speaker = next(track_iter).text
-            except StopIteration:
+            if len(track_info) > 1:
+                speaker = track_info[1].text
+            else:
                 # track has no speaker
                 speaker = None
 
@@ -134,21 +179,29 @@ for day in tree.xpath('//h2[@class="title"]'):
             start = mkdate(day_name, start)
 
             presentation = {
+                'key': title_clean,
                 'start': start,
                 'title': title_text,
                 'speaker': speaker,
             }
 
             track_schedule.append(presentation)
-            title_clean = clean_title(title_text)
-            print("+ %s" % title_clean)
             presentations_by_title[title_clean] = presentation
+            count += 1
 
+    expected = expected_counts[day_name]
+    if expected != count:
+        print("expected %s classes on %s, found %s" % (expected, day_name, count))
+        exit(1)
+
+
+print("found %s presentations" % len(presentations_by_title))
 
 parser = etree.HTMLParser(encoding='utf-8')
 tree = etree.fromstring(speakers_content, parser)
 
-for article in tree.xpath('//article'):
+article_count = 0
+for article in list(tree.xpath('//article')):
     try:
         title = next(article.iterchildren('h2'))
     except StopIteration:
@@ -158,17 +211,25 @@ for article in tree.xpath('//article'):
     if not title_text:
         continue
 
-    if title_text == 'DEF CON 101: The Panel.':
-        title_text = 'DEF CON 101: The Panel'
-    elif title_text == 'Introduction to SDR and the Wireless Village':
-        title_text = 'Introduction to SDR and the Wireless Village'
-    elif title_text == 'Key-Logger, Video, Mouse — How To Turn Your KVM Into a Raging Key-logging Monster':
-        title_text = 'Key-Logger, Video, Mouse — How To Turn Your KVM Into a Raging Key-logging'
+    presentation_key = clean_title(title_text)
+    presentation = presentations_by_title.get(presentation_key)
+    if not presentation:
+        continue
 
-    print("%s ==> %s" % (title_text, clean_title(title_text)))
-    presentation = presentations_by_title[clean_title(title_text)]
+    article_count += 1
+    print("+++ %s" % presentation_key)
+    article_text = ''.join(article.itertext())
+    if not article_text:
+        print(" --- %s" % presentation_key)
 
-    presentation['details'] = ''.join(article.itertext())
+    presentation['details'] = article_text
+
+
+# expected_article_counts = len(presentations_by_title)
+# if article_count != expected_article_counts:
+#     print("only found %s articles, expected %s"
+#           % (article_count, expected_article_counts))
+#     exit(1)
 
 
 calendar = icalendar.Calendar()
@@ -176,10 +237,7 @@ calendar.add('prodid', '-//DefCon %s Schedule//defcon.org//' % DEFCON_NUMBER)
 calendar.add('version', '2.0')
 
 for day, tracks in presentations_by_day_track.items():
-    print("%s: %s tracks" % (day, len(tracks)))
     for track, sched in tracks.items():
-        print("\t%s events" % len(sched))
-
         for index, presentation in enumerate(sched):
             if presentation is None:
                 continue
@@ -197,7 +255,7 @@ for day, tracks in presentations_by_day_track.items():
             if details:
                 event.add('DESCRIPTION', presentation['details'])
             else:
-                print("missing desc: %s" % presentation['title'])
+                print("missing desc: %s" % presentation['key'])
 
             if prev_presentation and prev_presentation['title'] == presentation['title']:
                 start = prev_presentation['start']
